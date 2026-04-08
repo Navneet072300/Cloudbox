@@ -1,5 +1,3 @@
-version: '3.9'
-
 services:
   # ─── Infrastructure ─────────────────────────────────────────────────
   postgres:
@@ -95,6 +93,7 @@ services:
       KAFKA_BROKERS:         kafka:29092
       JWT_SECRET:            ${JWT_SECRET:-dev-secret-change-me-in-production}
       S3_ENDPOINT:           http://minio:9000
+      S3_PUBLIC_ENDPOINT:    http://localhost:9000
       S3_BUCKET:             dropbox-dev
       AWS_REGION:            us-east-1
       AWS_ACCESS_KEY_ID:     ${MINIO_ACCESS_KEY:-minioadmin}
@@ -116,6 +115,11 @@ services:
     command: npm run dev
     volumes:
       - ./frontend/src:/app/src:ro
+      - ./frontend/next.config.js:/app/next.config.js:ro
+      - ./frontend/tsconfig.json:/app/tsconfig.json
+      - ./frontend/postcss.config.js:/app/postcss.config.js:ro
+      - ./frontend/tailwind.config.ts:/app/tailwind.config.ts:ro
+      - ./frontend/components.json:/app/components.json:ro
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:4000/api
       NEXT_PUBLIC_WS_URL:  ws://localhost:4000

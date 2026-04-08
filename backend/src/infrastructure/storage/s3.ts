@@ -13,19 +13,27 @@ import {
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
-const s3 = new S3Client({
-  region: process.env.AWS_REGION ?? 'us-east-1',
-  ...(process.env.S3_ENDPOINT
-    ? {
-        endpoint:        process.env.S3_ENDPOINT,
-        forcePathStyle:  true,
-        credentials: {
-          accessKeyId:     process.env.AWS_ACCESS_KEY_ID ?? 'minioadmin',
-          secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY ?? 'minioadmin',
-        },
-      }
-    : {}),
-});
+function makeClient(endpoint: string | undefined) {
+  return new S3Client({
+    region: process.env.AWS_REGION ?? 'us-east-1',
+    ...(endpoint
+      ? {
+          endpoint,
+          forcePathStyle: true,
+          credentials: {
+            accessKeyId:     process.env.AWS_ACCESS_KEY_ID ?? 'minioadmin',
+            secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY ?? 'minioadmin',
+          },
+        }
+      : {}),
+  });
+}
+
+// Internal client for bucket operations (backend → MinIO via Docker network)
+const s3 = makeClient(process.env.S3_ENDPOINT);
+
+// Public client for presigned URLs (browser → MinIO via localhost)
+const s3Public = makeClient(process.env.S3_PUBLIC_ENDPOINT ?? process.env.S3_ENDPOINT);
 
 const BUCKET  = process.env.S3_BUCKET ?? 'dropbox-dev';
 const URL_TTL = 3600; // presigned URL valid for 1 hour
@@ -36,7 +44,6 @@ export const storage = {
       Bucket:             BUCKET,
       Key:                key,
       ContentType:        mimeType,
-      ServerSideEncryption: 'AES256',
     });
     const res = await s3.send(cmd);
     return res.UploadId!;
@@ -44,7 +51,7 @@ export const storage = {
 
   async getPresignedUploadUrl(key: string, uploadId: string, partNumber: number): Promise<string> {
     return getSignedUrl(
-      s3,
+      s3Public,
       new UploadPartCommand({ Bucket: BUCKET, Key: key, UploadId: uploadId, PartNumber: partNumber }),
       { expiresIn: URL_TTL }
     );
@@ -71,7 +78,7 @@ export const storage = {
 
   async getPresignedDownloadUrl(key: string, fileName: string): Promise<string> {
     return getSignedUrl(
-      s3,
+      s3Public,
       new GetObjectCommand({
         Bucket: BUCKET,
         Key:    key,

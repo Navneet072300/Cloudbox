@@ -29,6 +29,9 @@ const wss = new WebSocketServer({ server: httpServer, path: '/sync' });
 
 // ─── Middleware ───────────────────────────────────────────────────────
 app.set('trust proxy', 1);
+app.set('json replacer', (_key: string, value: unknown) =>
+  typeof value === 'bigint' ? Number(value) : value
+);
 
 app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' }, // allow S3 presigned URLs
