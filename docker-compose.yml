@@ -85,7 +85,7 @@ services:
     command: npx tsx watch src/app.ts
     volumes:
       - ./backend/src:/app/src:ro
-      - ./backend/prisma:/app/prisma:ro
+      - ./backend/prisma:/app/prisma
     environment:
       NODE_ENV:              development
       DATABASE_URL:          postgresql://dropbox:${POSTGRES_PASSWORD:-localdev}@postgres:5432/dropbox
