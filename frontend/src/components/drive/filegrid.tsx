@@ -18,8 +18,8 @@ import {
   Trash2,
   Pencil,
 } from "lucide-react";
-import { ShareModal } from "../share/ShareModal";
-import { VersionsPanel } from "../versions/VersionsPanel";
+import { ShareModal } from "../share/sharemodal";
+import { VersionsPanel } from "../versions/versionspanel";
 
 interface Props {
   files: FileRecord[];
