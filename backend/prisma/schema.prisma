@@ -1,0 +1,207 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  passwordHash  String?
+  name          String
+  storageUsed   BigInt    @default(0)
+  storageQuota  BigInt    @default(5368709120)
+  avatarUrl     String?
+  isVerified    Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  refreshTokens RefreshToken[]
+  files         File[]
+  folders       Folder[]
+  ownedShares   Share[]        @relation("ShareOwner")
+  sharedWithMe  ShareMember[]
+  oauthAccounts OAuthAccount[]
+
+  @@map("users")
+}
+
+model OAuthAccount {
+  id          String   @id @default(uuid())
+  userId      String
+  provider    String
+  providerUid String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerUid])
+  @@map("oauth_accounts")
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid())
+  userId    String
+  tokenHash String    @unique
+  deviceId  String?
+  userAgent String?
+  ipAddress String?
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tokenHash])
+  @@map("refresh_tokens")
+}
+
+model Folder {
+  id        String    @id @default(uuid())
+  name      String
+  ownerId   String
+  parentId  String?
+  path      String
+  isDeleted Boolean   @default(false)
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  owner     User      @relation(fields: [ownerId], references: [id])
+  parent    Folder?   @relation("FolderTree", fields: [parentId], references: [id])
+  children  Folder[]  @relation("FolderTree")
+  files     File[]
+  shares    Share[]
+
+  @@unique([parentId, name, ownerId])
+  @@index([ownerId])
+  @@index([path])
+  @@map("folders")
+}
+
+model File {
+  id          String    @id @default(uuid())
+  name        String
+  ownerId     String
+  folderId    String?
+  mimeType    String
+  size        BigInt
+  checksum    String
+  storageKey  String
+  isDeleted   Boolean   @default(false)
+  deletedAt   DateTime?
+  vectorClock Json      @default("{}")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  owner       User          @relation(fields: [ownerId], references: [id])
+  folder      Folder?       @relation(fields: [folderId], references: [id])
+  versions    FileVersion[]
+  shares      Share[]
+
+  @@unique([folderId, name, ownerId])
+  @@index([ownerId])
+  @@index([checksum])
+  @@index([folderId])
+  @@map("files")
+}
+
+model FileVersion {
+  id          String   @id @default(uuid())
+  fileId      String
+  versionNum  Int
+  size        BigInt
+  checksum    String
+  storageKey  String
+  uploadedBy  String
+  createdAt   DateTime @default(now())
+
+  file        File     @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@unique([fileId, versionNum])
+  @@index([fileId])
+  @@map("file_versions")
+}
+
+model UploadSession {
+  id             String       @id @default(uuid())
+  userId         String
+  fileId         String?
+  fileName       String
+  folderId       String?
+  mimeType       String
+  totalSize      BigInt
+  totalChunks    Int
+  chunkSize      Int
+  s3UploadId     String
+  storageKey     String
+  uploadedChunks Json         @default("[]")
+  baseVersionNum Int          @default(0)
+  status         UploadStatus @default(PENDING)
+  expiresAt      DateTime
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([userId])
+  @@map("upload_sessions")
+}
+
+enum UploadStatus {
+  PENDING
+  IN_PROGRESS
+  ASSEMBLING
+  COMPLETED
+  FAILED
+  EXPIRED
+}
+
+model Share {
+  id           String      @id @default(uuid())
+  fileId       String?
+  folderId     String?
+  ownerId      String
+  type         ShareType
+  token        String      @unique @default(uuid())
+  permission   Permission  @default(VIEW)
+  expiresAt    DateTime?
+  password     String?
+  downloadCount Int        @default(0)
+  isActive     Boolean     @default(true)
+  createdAt    DateTime    @default(now())
+
+  owner        User        @relation("ShareOwner", fields: [ownerId], references: [id])
+  file         File?       @relation(fields: [fileId], references: [id])
+  folder       Folder?     @relation(fields: [folderId], references: [id])
+  members      ShareMember[]
+
+  @@index([token])
+  @@index([ownerId])
+  @@map("shares")
+}
+
+model ShareMember {
+  id         String     @id @default(uuid())
+  shareId    String
+  userId     String
+  permission Permission @default(VIEW)
+  addedAt    DateTime   @default(now())
+
+  share      Share      @relation(fields: [shareId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([shareId, userId])
+  @@map("share_members")
+}
+
+enum ShareType {
+  PUBLIC_LINK
+  PRIVATE_INVITE
+}
+
+enum Permission {
+  VIEW
+  EDIT
+  ADMIN
+}
