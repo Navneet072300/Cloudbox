@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+  namespace: cloudbox
+data:
+  NODE_ENV:       "production"
+  PORT:           "4000"
+  AWS_REGION:     "us-east-1"
+  # These are filled in by CI/CD from Terraform outputs:
+  S3_BUCKET:      "REPLACE_WITH_TERRAFORM_OUTPUT_s3_bucket_name"
+  # Database and Redis come from the Secret (see secret.yaml)

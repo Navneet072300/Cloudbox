@@ -1,148 +1,33 @@
-name: CI/CD
+name: Deploy to EKS
 
 on:
-  push:
+  workflow_run:
+    workflows: ["CI — Build & Push"]
+    types: [completed]
     branches: [main]
-  pull_request:
-    branches: [main]
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Image tag to deploy (default: latest)"
+        required: false
+        default: "latest"
 
 env:
-  AWS_REGION:  us-east-1
-  ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
-  EKS_CLUSTER:  dropbox-production
+  AWS_REGION:   us-east-1
+  ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com
+  CLUSTER_NAME: cloudbox-prod
+  NAMESPACE:    cloudbox
 
 jobs:
-  # ─── Test Backend ─────────────────────────────────────────────────
-  test-backend:
-    name: Test Backend
-    runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_DB: dropbox_test
-          POSTGRES_USER: test
-          POSTGRES_PASSWORD: test
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 5s
-          --health-retries 10
-      redis:
-        image: redis:7-alpine
-        ports: ["6379:6379"]
-
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: backend/package-lock.json
-
-      - name: Install deps
-        run: npm ci
-        working-directory: backend
-
-      - name: Generate Prisma client
-        run: npx prisma generate
-        working-directory: backend
-
-      - name: Run migrations
-        run: npx prisma migrate deploy
-        working-directory: backend
-        env:
-          DATABASE_URL: postgresql://test:test@localhost:5432/dropbox_test
-
-      - name: Type check
-        run: npm run type-check
-        working-directory: backend
-
-      - name: Test
-        run: npm test
-        working-directory: backend
-        env:
-          NODE_ENV:     test
-          DATABASE_URL: postgresql://test:test@localhost:5432/dropbox_test
-          REDIS_HOST:   localhost
-          REDIS_PORT:   6379
-          JWT_SECRET:   test-jwt-secret-32-chars-minimum!!
-
-  # ─── Test Frontend ────────────────────────────────────────────────
-  test-frontend:
-    name: Test Frontend
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-      - run: npm ci
-        working-directory: frontend
-      - run: npm run type-check
-        working-directory: frontend
-      - run: npm run lint
-        working-directory: frontend
-
-  # ─── Build & Push Images ─────────────────────────────────────────
-  build:
-    name: Build & Push
-    needs: [test-backend, test-frontend]
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    outputs:
-      tag: ${{ github.sha }}
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region:            ${{ env.AWS_REGION }}
-
-      - uses: aws-actions/amazon-ecr-login@v2
-
-      - uses: docker/setup-buildx-action@v3
-
-      - name: Build & push backend
-        uses: docker/build-push-action@v5
-        with:
-          context:    ./backend
-          platforms:  linux/amd64,linux/arm64
-          push:       true
-          tags: |
-            ${{ env.ECR_REGISTRY }}/dropbox-backend:${{ github.sha }}
-            ${{ env.ECR_REGISTRY }}/dropbox-backend:latest
-          cache-from: type=gha,scope=backend
-          cache-to:   type=gha,mode=max,scope=backend
-
-      - name: Build & push frontend
-        uses: docker/build-push-action@v5
-        with:
-          context:    ./frontend
-          platforms:  linux/amd64,linux/arm64
-          push:       true
-          tags: |
-            ${{ env.ECR_REGISTRY }}/dropbox-frontend:${{ github.sha }}
-            ${{ env.ECR_REGISTRY }}/dropbox-frontend:latest
-          cache-from: type=gha,scope=frontend
-          cache-to:   type=gha,mode=max,scope=frontend
-          build-args: |
-            NEXT_PUBLIC_API_URL=https://api.cloudbox.app/api
-            NEXT_PUBLIC_WS_URL=wss://api.cloudbox.app
-
-  # ─── Deploy ───────────────────────────────────────────────────────
   deploy:
-    name: Deploy to Production
-    needs: [build]
+    name: Deploy
     runs-on: ubuntu-latest
-    environment:
-      name: production
-      url: https://cloudbox.app
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+    # Requires a GitHub Environment named "production" with protection rules.
+    # Create it at: Settings → Environments → New environment → production
+    # environment:
+    #   name: production
+    #   url: https://YOUR_DOMAIN
     concurrency:
       group: deploy-production
       cancel-in-progress: false
@@ -150,39 +35,97 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: aws-actions/configure-aws-credentials@v4
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            ${{ env.AWS_REGION }}
 
       - name: Update kubeconfig
-        run: aws eks update-kubeconfig --name ${{ env.EKS_CLUSTER }} --region ${{ env.AWS_REGION }}
-
-      - name: Substitute image tags
         run: |
-          TAG=${{ github.sha }}
-          sed -i "s|REGISTRY/dropbox-backend:TAG|${{ env.ECR_REGISTRY }}/dropbox-backend:${TAG}|g" infra/k8s/backend.yaml
-          sed -i "s|REGISTRY/dropbox-frontend:TAG|${{ env.ECR_REGISTRY }}/dropbox-frontend:${TAG}|g" infra/k8s/frontend.yaml
+          aws eks update-kubeconfig \
+            --region ${{ env.AWS_REGION }} \
+            --name   ${{ env.CLUSTER_NAME }}
 
-      - name: Apply manifests
+      - name: Determine image tag
+        id: tag
         run: |
-          kubectl apply -f infra/k8s/namespace.yaml
-          kubectl apply -f infra/k8s/backend.yaml
-          kubectl apply -f infra/k8s/frontend.yaml
-          kubectl apply -f infra/k8s/ingress.yaml
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "value=${{ github.event.inputs.image_tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "value=sha-${{ github.event.workflow_run.head_sha }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Apply namespace
+        run: kubectl apply -f infrastructure/k8s/namespace.yaml
+
+      - name: Apply Kafka
+        run: kubectl apply -f infrastructure/k8s/kafka/
+
+      - name: Run Prisma migrations
+        run: |
+          DB_URL=$(kubectl get secret backend-secret \
+            -n ${{ env.NAMESPACE }} \
+            -o jsonpath='{.data.DATABASE_URL}' | base64 -d)
+          kubectl run prisma-migrate-${{ github.run_number }} \
+            --namespace=${{ env.NAMESPACE }} \
+            --image=${{ env.ECR_REGISTRY }}/cloudbox-prod/backend:${{ steps.tag.outputs.value }} \
+            --restart=Never \
+            --env="DATABASE_URL=${DB_URL}" \
+            --command -- npx prisma migrate deploy
+          kubectl wait pod/prisma-migrate-${{ github.run_number }} \
+            -n ${{ env.NAMESPACE }} \
+            --for=condition=Completed \
+            --timeout=120s \
+            || (kubectl logs prisma-migrate-${{ github.run_number }} -n ${{ env.NAMESPACE }} && exit 1)
+          kubectl delete pod prisma-migrate-${{ github.run_number }} \
+            -n ${{ env.NAMESPACE }} --ignore-not-found
+
+      - name: Deploy backend
+        run: |
+          kubectl apply -f infrastructure/k8s/backend/configmap.yaml
+          kubectl apply -f infrastructure/k8s/backend/serviceaccount.yaml
+          kubectl apply -f infrastructure/k8s/backend/service.yaml
+          kubectl apply -f infrastructure/k8s/backend/hpa.yaml
+          kubectl set image deployment/backend \
+            backend=${{ env.ECR_REGISTRY }}/cloudbox-prod/backend:${{ steps.tag.outputs.value }} \
+            -n ${{ env.NAMESPACE }} \
+            || kubectl apply -f infrastructure/k8s/backend/deployment.yaml
+          # Patch image in case deployment was just created
+          kubectl set image deployment/backend \
+            backend=${{ env.ECR_REGISTRY }}/cloudbox-prod/backend:${{ steps.tag.outputs.value }} \
+            -n ${{ env.NAMESPACE }}
+
+      - name: Deploy frontend
+        run: |
+          kubectl apply -f infrastructure/k8s/frontend/service.yaml
+          kubectl apply -f infrastructure/k8s/frontend/hpa.yaml
+          kubectl set image deployment/frontend \
+            frontend=${{ env.ECR_REGISTRY }}/cloudbox-prod/frontend:${{ steps.tag.outputs.value }} \
+            -n ${{ env.NAMESPACE }} \
+            || kubectl apply -f infrastructure/k8s/frontend/deployment.yaml
+          kubectl set image deployment/frontend \
+            frontend=${{ env.ECR_REGISTRY }}/cloudbox-prod/frontend:${{ steps.tag.outputs.value }} \
+            -n ${{ env.NAMESPACE }}
+
+      - name: Apply Ingress
+        run: kubectl apply -f infrastructure/k8s/ingress/ingress.yaml
 
       - name: Wait for rollout
         run: |
-          kubectl rollout status deployment/backend  -n dropbox --timeout=5m
-          kubectl rollout status deployment/frontend -n dropbox --timeout=5m
+          kubectl rollout status deployment/backend  -n ${{ env.NAMESPACE }} --timeout=180s
+          kubectl rollout status deployment/frontend -n ${{ env.NAMESPACE }} --timeout=180s
 
-      - name: Smoke test
+      - name: Smoke test + auto-rollback on failure
         run: |
-          sleep 10
-          curl -sf https://api.cloudbox.app/health | python3 -c "import sys,json; d=json.load(sys.stdin); assert d['status']=='ok'"
-          echo "Production health check passed ✓"
-
-      - name: Notify on failure
-        if: failure()
-        run: echo "Deploy failed — check logs at ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          sleep 15
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            https://api.${{ secrets.DOMAIN_NAME }}/health)
+          if [ "$STATUS" != "200" ]; then
+            echo "Health check failed (HTTP $STATUS) — rolling back"
+            kubectl rollout undo deployment/backend  -n ${{ env.NAMESPACE }}
+            kubectl rollout undo deployment/frontend -n ${{ env.NAMESPACE }}
+            exit 1
+          fi
+          echo "Smoke test passed (HTTP $STATUS)"
