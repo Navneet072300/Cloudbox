@@ -1,0 +1,123 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: cloudbox-alerts
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    # ─── API Health ───────────────────────────────────────────────────────────
+    - name: cloudbox.api
+      interval: 30s
+      rules:
+        - alert: BackendDown
+          expr: up{job="cloudbox-backend"} == 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "CloudBox backend is down"
+            description: "Backend pod {{ $labels.pod }} has been unreachable for > 1 minute."
+
+        - alert: HighErrorRate
+          expr: |
+            rate(http_requests_total{namespace="cloudbox", status=~"5.."}[5m])
+            /
+            rate(http_requests_total{namespace="cloudbox"}[5m]) > 0.05
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High 5xx error rate on backend"
+            description: "Error rate is {{ $value | humanizePercentage }} over the last 5 minutes."
+
+        - alert: SlowRequests
+          expr: |
+            histogram_quantile(0.95,
+              rate(http_request_duration_seconds_bucket{namespace="cloudbox"}[5m])
+            ) > 2
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "P95 latency above 2s"
+            description: "95th percentile response time is {{ $value | humanizeDuration }}."
+
+    # ─── Upload Pipeline ──────────────────────────────────────────────────────
+    - name: cloudbox.uploads
+      interval: 60s
+      rules:
+        - alert: UploadFailureSpike
+          expr: |
+            rate(cloudbox_upload_failures_total[10m]) > 0.1
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Upload failure spike"
+            description: "More than 0.1 upload failures/sec over the last 10 minutes."
+
+    # ─── Pod Health ───────────────────────────────────────────────────────────
+    - name: cloudbox.pods
+      interval: 30s
+      rules:
+        - alert: PodCrashLooping
+          expr: |
+            rate(kube_pod_container_status_restarts_total{namespace="cloudbox"}[15m]) > 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Pod {{ $labels.pod }} is crash-looping"
+            description: "Container {{ $labels.container }} has restarted {{ $value | humanize }} times in 15 minutes."
+
+        - alert: PodNotReady
+          expr: |
+            kube_pod_status_ready{namespace="cloudbox", condition="true"} == 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Pod {{ $labels.pod }} not ready"
+            description: "Pod has been in a non-ready state for > 5 minutes."
+
+        - alert: HPAAtMaxReplicas
+          expr: |
+            kube_horizontalpodautoscaler_status_current_replicas{namespace="cloudbox"}
+            ==
+            kube_horizontalpodautoscaler_spec_max_replicas{namespace="cloudbox"}
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "HPA {{ $labels.horizontalpodautoscaler }} at max replicas"
+            description: "HPA has been at max replicas for 10 minutes — consider raising the limit."
+
+    # ─── Resource Pressure ────────────────────────────────────────────────────
+    - name: cloudbox.resources
+      interval: 60s
+      rules:
+        - alert: HighMemoryUsage
+          expr: |
+            container_memory_working_set_bytes{namespace="cloudbox", container!=""}
+            /
+            kube_pod_container_resource_limits{namespace="cloudbox", resource="memory"} > 0.85
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Container {{ $labels.container }} memory > 85%"
+            description: "Memory usage is at {{ $value | humanizePercentage }} of its limit."
+
+        - alert: HighCPUUsage
+          expr: |
+            rate(container_cpu_usage_seconds_total{namespace="cloudbox", container!=""}[5m])
+            /
+            kube_pod_container_resource_limits{namespace="cloudbox", resource="cpu"} > 0.85
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Container {{ $labels.container }} CPU > 85%"
+            description: "CPU usage is at {{ $value | humanizePercentage }} of its limit."

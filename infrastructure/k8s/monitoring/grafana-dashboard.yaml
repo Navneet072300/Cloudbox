@@ -1,0 +1,128 @@
+# Grafana automatically loads ConfigMaps labelled grafana_dashboard: "1"
+# in the namespace where grafana is running (monitoring).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cloudbox-grafana-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  cloudbox.json: |
+    {
+      "title": "CloudBox Overview",
+      "uid": "cloudbox-overview",
+      "schemaVersion": 38,
+      "refresh": "30s",
+      "time": { "from": "now-1h", "to": "now" },
+      "panels": [
+        {
+          "id": 1,
+          "type": "stat",
+          "title": "Request Rate (req/s)",
+          "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 },
+          "targets": [{
+            "expr": "sum(rate(http_requests_total{namespace=\"cloudbox\"}[5m]))",
+            "legendFormat": "req/s"
+          }],
+          "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
+          "fieldConfig": { "defaults": { "unit": "reqps", "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 50 },
+              { "color": "red",    "value": 100 }
+            ]
+          }}}
+        },
+        {
+          "id": 2,
+          "type": "stat",
+          "title": "Error Rate",
+          "gridPos": { "x": 6, "y": 0, "w": 6, "h": 4 },
+          "targets": [{
+            "expr": "sum(rate(http_requests_total{namespace=\"cloudbox\",status=~\"5..\"}[5m])) / sum(rate(http_requests_total{namespace=\"cloudbox\"}[5m]))",
+            "legendFormat": "error %"
+          }],
+          "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
+          "fieldConfig": { "defaults": { "unit": "percentunit", "thresholds": {
+            "steps": [
+              { "color": "green",  "value": null },
+              { "color": "yellow", "value": 0.01 },
+              { "color": "red",    "value": 0.05 }
+            ]
+          }}}
+        },
+        {
+          "id": 3,
+          "type": "stat",
+          "title": "P95 Latency",
+          "gridPos": { "x": 12, "y": 0, "w": 6, "h": 4 },
+          "targets": [{
+            "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{namespace=\"cloudbox\"}[5m])) by (le))",
+            "legendFormat": "p95"
+          }],
+          "fieldConfig": { "defaults": { "unit": "s", "thresholds": {
+            "steps": [
+              { "color": "green",  "value": null },
+              { "color": "yellow", "value": 0.5 },
+              { "color": "red",    "value": 2 }
+            ]
+          }}}
+        },
+        {
+          "id": 4,
+          "type": "stat",
+          "title": "Running Pods",
+          "gridPos": { "x": 18, "y": 0, "w": 6, "h": 4 },
+          "targets": [{
+            "expr": "count(kube_pod_status_ready{namespace=\"cloudbox\",condition=\"true\"})",
+            "legendFormat": "pods"
+          }],
+          "fieldConfig": { "defaults": { "unit": "short" } }
+        },
+        {
+          "id": 5,
+          "type": "timeseries",
+          "title": "HTTP Requests by Status",
+          "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
+          "targets": [
+            { "expr": "sum by (status) (rate(http_requests_total{namespace=\"cloudbox\"}[5m]))", "legendFormat": "{{status}}" }
+          ],
+          "fieldConfig": { "defaults": { "unit": "reqps" } }
+        },
+        {
+          "id": 6,
+          "type": "timeseries",
+          "title": "Latency Percentiles",
+          "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
+          "targets": [
+            { "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket{namespace=\"cloudbox\"}[5m])) by (le))", "legendFormat": "p50" },
+            { "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{namespace=\"cloudbox\"}[5m])) by (le))", "legendFormat": "p95" },
+            { "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{namespace=\"cloudbox\"}[5m])) by (le))", "legendFormat": "p99" }
+          ],
+          "fieldConfig": { "defaults": { "unit": "s" } }
+        },
+        {
+          "id": 7,
+          "type": "timeseries",
+          "title": "Pod CPU Usage",
+          "gridPos": { "x": 0, "y": 12, "w": 12, "h": 8 },
+          "targets": [{
+            "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"cloudbox\",container!=\"\"}[5m]))",
+            "legendFormat": "{{pod}}"
+          }],
+          "fieldConfig": { "defaults": { "unit": "cores" } }
+        },
+        {
+          "id": 8,
+          "type": "timeseries",
+          "title": "Pod Memory Usage",
+          "gridPos": { "x": 12, "y": 12, "w": 12, "h": 8 },
+          "targets": [{
+            "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"cloudbox\",container!=\"\"})",
+            "legendFormat": "{{pod}}"
+          }],
+          "fieldConfig": { "defaults": { "unit": "bytes" } }
+        }
+      ]
+    }

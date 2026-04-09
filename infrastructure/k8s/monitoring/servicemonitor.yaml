@@ -1,0 +1,21 @@
+# Tells Prometheus (kube-prometheus-stack) to scrape the backend /metrics endpoint.
+# Requires kube-prometheus-stack to be installed (helm.tf does this).
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: cloudbox-backend
+  namespace: monitoring          # must be in the same namespace as Prometheus
+  labels:
+    release: kube-prometheus-stack   # must match Prometheus selector label
+spec:
+  namespaceSelector:
+    matchNames:
+      - cloudbox
+  selector:
+    matchLabels:
+      app: backend
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
+      scrapeTimeout: 10s
