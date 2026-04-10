@@ -29,56 +29,11 @@ A full-stack, production-ready Dropbox clone built from scratch and deployed on 
 
 ## Architecture
 
-```
-                           ┌─────────────────────────────────────────────┐
-                           │              AWS Cloud (us-east-1)           │
-                           │                                              │
-  Browser / Client         │  ┌──────────────────────────────────────┐   │
-       │                   │  │           VPC (10.0.0.0/16)          │   │
-       │  HTTPS            │  │                                      │   │
-       ▼                   │  │  Public Subnets                      │   │
-  ┌─────────┐              │  │  ┌────────────────────────────────┐  │   │
-  │   ALB   │◄─────────────┤  │  │   AWS ALB (Ingress Controller) │  │   │
-  │(Ingress)│              │  │  └──────────────┬─────────────────┘  │   │
-  └─────────┘              │  │                 │                    │   │
-                           │  │  Private Subnets│                    │   │
-                           │  │  ┌──────────────▼─────────────────┐ │   │
-                           │  │  │         EKS Cluster            │ │   │
-                           │  │  │  ┌────────────┐ ┌───────────┐  │ │   │
-                           │  │  │  │  Frontend  │ │  Backend  │  │ │   │
-                           │  │  │  │ (Next.js)  │ │ (Express) │  │ │   │
-                           │  │  │  │ 2 replicas │ │ 2 replicas│  │ │   │
-                           │  │  │  └────────────┘ └─────┬─────┘  │ │   │
-                           │  │  │                        │        │ │   │
-                           │  │  │  ┌─────────────────────▼──────┐ │ │   │
-                           │  │  │  │   Kafka (KRaft, 3 nodes)   │ │ │   │
-                           │  │  │  │   StatefulSet + EBS PVCs   │ │ │   │
-                           │  │  │  └────────────────────────────┘ │ │   │
-                           │  │  └────────────────────────────────┘ │   │
-                           │  │                                      │   │
-                           │  │  Managed Services                    │   │
-                           │  │  ┌──────────┐ ┌──────────┐          │   │
-                           │  │  │   RDS    │ │  Redis   │          │   │
-                           │  │  │ Postgres │ │ElastiCache│          │   │
-                           │  │  │  15.7    │ │          │          │   │
-                           │  │  └──────────┘ └──────────┘          │   │
-                           │  │                                      │   │
-                           │  │  ┌──────────┐ ┌──────────┐          │   │
-                           │  │  │    S3    │ │   ECR    │          │   │
-                           │  │  │ (storage)│ │ (images) │          │   │
-                           │  │  └──────────┘ └──────────┘          │   │
-                           │  │                                      │   │
-                           │  │  ┌────────────────────────────────┐ │   │
-                           │  │  │  Secrets Manager → ESO → K8s   │ │   │
-                           │  │  │  (External Secrets Operator)   │ │   │
-                           │  │  └────────────────────────────────┘ │   │
-                           │  └──────────────────────────────────────┘   │
-                           └─────────────────────────────────────────────┘
+![CloudBox Architecture](cloudbox.png)
 
-  Upload flow:
-  Browser → POST /api/files/upload/init → Backend → S3 presigned URLs
-  Browser → PUT (chunks) directly to S3 → POST /api/files/upload/:id/complete
-```
+**Upload flow:**
+Browser → `POST /api/files/upload/init` → Backend → S3 presigned URLs
+Browser → `PUT` (chunks) directly to S3 → `POST /api/files/upload/:id/complete`
 
 ---
 
