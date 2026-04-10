@@ -12,6 +12,8 @@ node_modules/
 frontend/.next/
 frontend/out/
 
+terraform.tfvars
+
 # TypeScript build caches
 tsconfig.tsbuildinfo
 frontend/tsconfig.tsbuildinfo
