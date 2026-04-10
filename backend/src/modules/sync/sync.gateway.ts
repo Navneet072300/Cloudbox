@@ -71,32 +71,36 @@ export async function setupSyncGateway(wss: WebSocketServer): Promise<void> {
     ws.on('error', (err: Error) => logger.error({ err }, 'WebSocket error'));
   });
 
-  // Subscribe to Kafka events and push to connected clients
-  await consumer.subscribe({ topics: ['file.uploaded', 'file.deleted'], fromBeginning: false });
+  // Subscribe to Kafka events and push to connected clients (non-fatal if Kafka is unavailable)
+  try {
+    await consumer.subscribe({ topics: ['file.uploaded', 'file.deleted'], fromBeginning: false });
 
-  await consumer.run({
-    eachMessage: async ({ topic, message }) => {
-      if (!message.value) return;
-      const event = JSON.parse(message.value.toString());
-      const { userId } = event;
+    await consumer.run({
+      eachMessage: async ({ topic, message }) => {
+        if (!message.value) return;
+        const event = JSON.parse(message.value.toString());
+        const { userId } = event;
 
-      const msg = JSON.stringify({ type: `sync:${topic.replace('.', ':')}`, ...event });
+        const msg = JSON.stringify({ type: `sync:${topic.replace('.', ':')}`, ...event });
 
-      const userConns = connections.get(userId);
-      if (!userConns || userConns.size === 0) {
-        // Store for later delivery
-        await redis.lpush(`missed:${userId}`, msg);
-        await redis.ltrim(`missed:${userId}`, 0, 499);
-        return;
-      }
+        const userConns = connections.get(userId);
+        if (!userConns || userConns.size === 0) {
+          // Store for later delivery
+          await redis.lpush(`missed:${userId}`, msg);
+          await redis.ltrim(`missed:${userId}`, 0, 499);
+          return;
+        }
 
-      userConns.forEach((c) => {
-        if (c.ws.readyState === WebSocket.OPEN) c.ws.send(msg);
-      });
-    },
-  });
+        userConns.forEach((c) => {
+          if (c.ws.readyState === WebSocket.OPEN) c.ws.send(msg);
+        });
+      },
+    });
 
-  logger.info('Sync WebSocket gateway ready');
+    logger.info('Sync WebSocket gateway ready');
+  } catch (err) {
+    logger.warn({ err }, 'Kafka consumer setup failed — real-time sync unavailable until Kafka is ready');
+  }
 }
 
 export function broadcastToUser(userId: string, payload: object): void {
