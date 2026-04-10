@@ -46,6 +46,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "files" {
   rule {
     id     = "transition-and-expire"
     status = "Enabled"
+    filter {}   # empty = apply to all objects
 
     transition {
       days          = 30
