@@ -111,10 +111,10 @@ spec:
 
           resources:
             requests:
-              cpu:    "250m"
+              cpu: "250m"
               memory: "512Mi"
             limits:
-              cpu:    "1000m"
+              cpu: "1000m"
               memory: "1Gi"
 
           volumeMounts:
@@ -123,17 +123,17 @@ spec:
             - name: kafka-init
               mountPath: /etc/kafka-init
 
-          livenessProbe:
-            tcpSocket:
-              port: 9092
-            initialDelaySeconds: 30
-            periodSeconds:       15
+          # livenessProbe:
+          #   tcpSocket:
+          #     port: 9092
+          #   initialDelaySeconds: 30
+          #   periodSeconds:       15
 
-          readinessProbe:
-            tcpSocket:
-              port: 9092
-            initialDelaySeconds: 20
-            periodSeconds:       10
+          # readinessProbe:
+          #   tcpSocket:
+          #     port: 9092
+          #   initialDelaySeconds: 20
+          #   periodSeconds:       10
 
       volumes:
         - name: podinfo
