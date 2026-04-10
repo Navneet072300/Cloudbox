@@ -60,6 +60,16 @@ jobs:
       - name: Apply namespace
         run: kubectl apply -f infrastructure/k8s/namespace.yaml
 
+      - name: Apply External Secrets store + sync
+        run: |
+          kubectl apply -f infrastructure/k8s/backend/clustersecretstore.yaml
+          kubectl apply -f infrastructure/k8s/backend/externalsecret.yaml
+          # Wait up to 60s for ESO to fetch and create the backend-secret
+          kubectl wait externalsecret/backend-secret \
+            -n ${{ env.NAMESPACE }} \
+            --for=condition=Ready \
+            --timeout=60s
+
       - name: Apply Kafka
         run: kubectl apply -f infrastructure/k8s/kafka/
 
