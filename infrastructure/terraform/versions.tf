@@ -54,6 +54,8 @@ provider "kubernetes" {
 }
 
 provider "helm" {
+  repository_cache = "/tmp/.helm-cache"
+
   kubernetes {
     host                   = aws_eks_cluster.main.endpoint
     cluster_ca_certificate = base64decode(aws_eks_cluster.main.certificate_authority[0].data)

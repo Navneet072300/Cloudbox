@@ -75,8 +75,10 @@ resource "aws_eks_node_group" "main" {
 }
 
 resource "aws_launch_template" "eks_nodes" {
-  name_prefix   = "${local.prefix}-nodes-"
-  instance_type = var.node_instance_type
+  name_prefix = "${local.prefix}-nodes-"
+  # instance_type is NOT set here — it is set via instance_types in the node group.
+  # Setting it in both places causes: InvalidRequestException: Cannot specify instance
+  # types in launch template and API request.
 
   block_device_mappings {
     device_name = "/dev/xvda"

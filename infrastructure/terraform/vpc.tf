@@ -118,7 +118,7 @@ resource "aws_security_group" "eks_nodes" {
     self        = true
   }
   ingress {
-    description     = "Control plane → nodes (ephemeral ports)"
+    description     = "Control plane to nodes (ephemeral ports)"
     from_port       = 1025
     to_port         = 65535
     protocol        = "tcp"
