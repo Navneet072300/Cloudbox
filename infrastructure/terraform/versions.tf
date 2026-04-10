@@ -54,9 +54,6 @@ provider "kubernetes" {
 }
 
 provider "helm" {
-  # Use the same cache as the local helm CLI (populated by `helm repo add/update`)
-  repository_cache = pathexpand("~/.cache/helm/repository")
-
   kubernetes {
     host                   = aws_eks_cluster.main.endpoint
     cluster_ca_certificate = base64decode(aws_eks_cluster.main.certificate_authority[0].data)

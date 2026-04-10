@@ -8,7 +8,7 @@ resource "aws_db_subnet_group" "main" {
 # ─── Parameter Group ──────────────────────────────────────────────────────────
 resource "aws_db_parameter_group" "postgres" {
   name   = "${local.prefix}-postgres15"
-  family = "postgres15"
+  family = "postgres15"   # covers all 15.x versions
 
   parameter {
     name  = "log_connections"
@@ -31,7 +31,7 @@ resource "aws_db_instance" "main" {
   identifier = "${local.prefix}-postgres"
 
   engine               = "postgres"
-  engine_version       = "15.6"
+  engine_version       = "15.7"
   instance_class       = var.db_instance_class
   allocated_storage    = 20
   max_allocated_storage = 100   # auto-scaling up to 100 GB
