@@ -7,7 +7,7 @@ const kafka = new Kafka({
   logLevel: logLevel.WARN,
   retry: {
     initialRetryTime: 300,
-    retries: 10,
+    retries: 5,
   },
 });
 
@@ -22,14 +22,10 @@ export const consumer: Consumer = kafka.consumer({
 });
 
 export async function connectKafka(): Promise<void> {
-  try {
-    await producer.connect();
-    await consumer.connect();
-    logger.info('Kafka connected');
-  } catch (err) {
-    logger.error({ err }, 'Kafka connection failed');
-    // Non-fatal in dev — sync won't work but uploads will
-  }
+  // Connect in background so the HTTP server starts regardless of Kafka availability.
+  // KafkaJS will automatically reconnect once brokers come up.
+  producer.connect().catch(err => logger.warn({ err }, 'Kafka producer connect failed — retrying in background'));
+  consumer.connect().catch(err => logger.warn({ err }, 'Kafka consumer connect failed — retrying in background'));
 }
 
 export async function disconnectKafka(): Promise<void> {
