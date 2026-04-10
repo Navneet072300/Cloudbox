@@ -15,7 +15,7 @@ resource "aws_secretsmanager_secret_version" "backend" {
   secret_id = aws_secretsmanager_secret.backend.id
 
   secret_string = jsonencode({
-    DATABASE_URL        = "postgresql://${var.db_username}:${var.db_password}@${aws_db_instance.main.endpoint}/${var.db_name}"
+    DATABASE_URL        = "postgresql://${var.db_username}:${var.db_password}@${aws_db_instance.main.address}:${aws_db_instance.main.port}/${var.db_name}"
     REDIS_URL           = "redis://${aws_elasticache_cluster.main.cache_nodes[0].address}:6379"
     JWT_SECRET          = "REPLACE_WITH_$(openssl rand -hex 32)"
     JWT_REFRESH_SECRET  = "REPLACE_WITH_$(openssl rand -hex 32)"
