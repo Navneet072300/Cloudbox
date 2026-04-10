@@ -1,41 +1,46 @@
-# AWS ALB Ingress — routes cloudbox.example.com → frontend
-#                           api.cloudbox.example.com → backend
+# AWS ALB Ingress — HTTP only (no domain required)
+# Access via the ALB hostname directly after deployment.
+# To add HTTPS later: add certificate-arn annotation and change listen-ports to include 443.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: cloudbox
   namespace: cloudbox
   annotations:
-    kubernetes.io/ingress.class:                      "alb"
-    alb.ingress.kubernetes.io/scheme:                 "internet-facing"
-    alb.ingress.kubernetes.io/target-type:            "ip"
-    alb.ingress.kubernetes.io/listen-ports:           '[{"HTTP":80,"HTTPS":443}]'
-    alb.ingress.kubernetes.io/ssl-redirect:           "443"
-    # Replace with your ACM cert ARN (terraform output acm_certificate_arn)
-    alb.ingress.kubernetes.io/certificate-arn:        "arn:aws:acm:REGION:ACCOUNT:certificate/CERT_ID"
-    alb.ingress.kubernetes.io/healthcheck-path:       "/health"
-    alb.ingress.kubernetes.io/healthcheck-interval-seconds: "15"
-    alb.ingress.kubernetes.io/success-codes:          "200"
-    # Sticky sessions for WebSocket (sync gateway)
-    alb.ingress.kubernetes.io/load-balancer-attributes: |
-      routing.http2.enabled=true,idle_timeout.timeout_seconds=120
-    # ExternalDNS will register cloudbox.example.com → ALB
-    external-dns.alpha.kubernetes.io/hostname:        "cloudbox.example.com,api.cloudbox.example.com"
+    kubernetes.io/ingress.class:                             "alb"
+    alb.ingress.kubernetes.io/scheme:                        "internet-facing"
+    alb.ingress.kubernetes.io/target-type:                   "ip"
+    alb.ingress.kubernetes.io/listen-ports:                  '[{"HTTP":80}]'
+    alb.ingress.kubernetes.io/healthcheck-path:              "/health"
+    alb.ingress.kubernetes.io/healthcheck-interval-seconds:  "15"
+    alb.ingress.kubernetes.io/success-codes:                 "200"
+    alb.ingress.kubernetes.io/load-balancer-attributes:      "routing.http2.enabled=true,idle_timeout.timeout_seconds=120"
 spec:
   rules:
-    - host: "api.cloudbox.example.com"
-      http:
+    # Backend API — matches /api/* and /health and /sync (WebSocket)
+    - http:
         paths:
-          - path: /
+          - path: /api
             pathType: Prefix
             backend:
               service:
                 name: backend
                 port:
                   number: 80
-    - host: "cloudbox.example.com"
-      http:
-        paths:
+          - path: /health
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 80
+          - path: /sync
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 80
           - path: /
             pathType: Prefix
             backend:
