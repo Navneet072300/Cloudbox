@@ -15,7 +15,9 @@ export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
       user:     null,
-      deviceId: typeof crypto !== 'undefined' ? crypto.randomUUID() : 'ssr',
+      deviceId: typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2),
 
       setAuth: (user, accessToken, refreshToken) => {
         if (typeof window !== 'undefined') {

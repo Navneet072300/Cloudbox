@@ -33,7 +33,9 @@ export function generateDeviceId(): string {
   if (typeof window === 'undefined') return 'server';
   const stored = localStorage.getItem('deviceId');
   if (stored) return stored;
-  const id = crypto.randomUUID();
+  const id = typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
   localStorage.setItem('deviceId', id);
   return id;
 }

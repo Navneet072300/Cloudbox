@@ -14,8 +14,12 @@ export function useUpload(folderId: string | null) {
 
   const uploadFiles = useCallback(
     async (files: File[]) => {
+      const uuid = () => typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+
       const items = files.map((file) => ({
-        id:        crypto.randomUUID(),
+        id:        uuid(),
         file,
         folderId,
         sessionId: null,
