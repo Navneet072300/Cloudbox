@@ -1,4 +1,4 @@
-# CloudBox — Production-Grade Cloud Storage
+# CloudBox — Production-Grade Cloud Storage 
 
 A full-stack Dropbox-like system built from scratch.
 
