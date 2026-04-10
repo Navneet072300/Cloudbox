@@ -13,6 +13,10 @@ frontend/.next/
 frontend/out/
 
 terraform.tfvars
+infrastructure/terraform/.terraform/
+infrastructure/terraform/terraform.tfstate
+infrastructure/terraform/terraform.tfstate.backup
+infrastructure/terraform/.terraform.lock.hcl
 
 # TypeScript build caches
 tsconfig.tsbuildinfo

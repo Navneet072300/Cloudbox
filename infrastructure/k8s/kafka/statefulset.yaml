@@ -27,6 +27,7 @@ metadata:
 spec:
   serviceName: kafka-headless
   replicas: 3
+  podManagementPolicy: Parallel
   selector:
     matchLabels:
       app: kafka
@@ -36,6 +37,8 @@ spec:
         app: kafka
     spec:
       terminationGracePeriodSeconds: 30
+      securityContext:
+        fsGroup: 1000
 
       affinity:
         podAntiAffinity:
