@@ -135,7 +135,7 @@ resource "aws_security_group" "eks_nodes" {
 
 resource "aws_security_group" "rds" {
   name        = "${local.prefix}-rds-sg"
-  description = "PostgreSQL — only from EKS nodes"
+  description = "PostgreSQL - only from EKS nodes"
   vpc_id      = aws_vpc.main.id
 
   ingress {
@@ -155,7 +155,7 @@ resource "aws_security_group" "rds" {
 
 resource "aws_security_group" "redis" {
   name        = "${local.prefix}-redis-sg"
-  description = "ElastiCache Redis — only from EKS nodes"
+  description = "ElastiCache Redis - only from EKS nodes"
   vpc_id      = aws_vpc.main.id
 
   ingress {
